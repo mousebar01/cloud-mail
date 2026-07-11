@@ -769,6 +769,39 @@ const emailService = {
 		return result;
 	},
 
+	async exactMailboxList(c, params) {
+		const address = String(params.email || '').trim().toLowerCase();
+		const cursor = Number(params.emailId) || 9999999999;
+		const requestedSize = Number(params.size);
+		const size = Number.isFinite(requestedSize) ? Math.min(Math.max(requestedSize, 1), 100) : 50;
+		if (!address || !address.includes('@')) {
+			throw new BizError('A complete mailbox address is required', 400);
+		}
+
+		const rows = await orm(c).select({ ...email, userEmail: user.email })
+			.from(email)
+			.leftJoin(user, eq(email.userId, user.userId))
+			.where(and(
+				sql`${email.toEmail} COLLATE NOCASE = ${address}`,
+				eq(email.type, emailConst.type.RECEIVE),
+				eq(email.isDel, isDel.NORMAL),
+				ne(email.status, emailConst.status.SAVING),
+				lt(email.emailId, cursor),
+			))
+			.orderBy(desc(email.emailId))
+			.limit(size + 1)
+			.all();
+
+		const hasMore = rows.length > size;
+		const list = hasMore ? rows.slice(0, size) : rows;
+		await this.emailAddAtt(c, list);
+		return {
+			list,
+			hasMore,
+			nextEmailId: hasMore ? list.at(-1).emailId : null,
+		};
+	},
+
 	async allList(c, params) {
 
 		let { emailId, size, name, subject, accountEmail, userEmail, type, timeSort } = params;
