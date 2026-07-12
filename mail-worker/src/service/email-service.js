@@ -144,9 +144,11 @@ const emailService = {
 			.run();
 	},
 
-	receive(c, params, cidAttList, r2domain) {
+	async receive(c, params, cidAttList, r2domain) {
 		params.content = this.imgReplace(params.content, cidAttList, r2domain)
-		return orm(c).insert(email).values({ ...params }).returning().get();
+		const emailRow = await orm(c).insert(email).values({ ...params }).returning().get();
+		await userService.updateAccountStatusFromReceivedEmail(c, emailRow);
+		return emailRow;
 	},
 
 	//邮件发送
@@ -621,6 +623,7 @@ const emailService = {
 		for (const emailData of receiveEmailList) {
 
 			const emailRow = await orm(c).insert(email).values(emailData).returning().get();
+			await userService.updateAccountStatusFromReceivedEmail(c, emailRow);
 
 			//设置附件保存
 			for (const attRow of attList) {

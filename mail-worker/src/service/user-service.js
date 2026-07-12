@@ -358,6 +358,33 @@ const userService = {
 		return { planStatus, planExpiresAt, accountStatus, accountCheckedAt };
 	},
 
+	async updateAccountStatusFromReceivedEmail(c, message) {
+		const text = [message.subject, message.name, message.text, message.content].join('\n').toLowerCase();
+		const isPlusReceipt = PLUS_MARKERS.some(marker => text.includes(marker));
+		const isDeactivated = DEACTIVATED_MARKERS.some(marker => text.includes(marker));
+		if (!isPlusReceipt && !isDeactivated) {
+			return;
+		}
+		const userRow = await this.selectByIdIncludeDel(c, message.userId);
+		if (!userRow) {
+			return;
+		}
+		const now = dayjs();
+		let planStatus = userRow.planStatus || 'Free';
+		let planExpiresAt = userRow.planExpiresAt || null;
+		if (isPlusReceipt) {
+			const expiry = dayjs(message.createTime).add(30, 'day');
+			planStatus = expiry.isAfter(now) ? 'Plus' : 'Free';
+			planExpiresAt = planStatus === 'Plus' ? expiry.format('YYYY-MM-DD HH:mm:ss') : null;
+		}
+		await orm(c).update(user).set({
+			planStatus,
+			planExpiresAt,
+			accountStatus: isDeactivated ? 'Deactivated' : (userRow.accountStatus || 'Active'),
+			accountCheckedAt: now.format('YYYY-MM-DD HH:mm:ss')
+		}).where(eq(user.userId, message.userId)).run();
+	},
+
 	async incrUserSendCount(c, quantity, userId) {
 		await orm(c).update(user).set({
 			sendCount: sql`${user.sendCount}
