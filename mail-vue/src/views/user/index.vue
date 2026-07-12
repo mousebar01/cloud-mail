@@ -17,6 +17,9 @@
         <el-option :key="1" :label="$t('banned')" :value="1"/>
         <el-option :key="-2" :label="$t('deleted')" :value="-2"/>
       </el-select>
+      <el-button size="small" type="primary" :loading="checkingCurrentPage" @click="checkCurrentPageAccountStatuses">
+        {{ $t('checkCurrentPage') }}
+      </el-button>
       <Icon class="icon" icon="iconoir:search" @click="search" width="20" height="20"/>
       <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-down-outline"
             v-if="params.timeSort === 1" width="28" height="28"/>
@@ -499,6 +502,7 @@ const setPwdShow = ref(false)
 const pagerCount = ref(10)
 const settingLoading = ref(false)
 const tableLoading = ref(true)
+const checkingCurrentPage = ref(false)
 const roleList = reactive([])
 const mySelect = ref({})
 const accountList = reactive([])
@@ -626,6 +630,33 @@ function checkAccountStatus(user) {
   }).finally(() => {
     user.checkingAccountStatus = false
   })
+}
+
+async function checkCurrentPageAccountStatuses() {
+  if (!users.value.length || checkingCurrentPage.value) return
+  checkingCurrentPage.value = true
+  let checked = 0
+  try {
+    for (const user of users.value) {
+      user.checkingAccountStatus = true
+      try {
+        const data = await userCheckAccountStatus(user.userId)
+        Object.assign(user, data)
+        checked += 1
+      } catch {
+        // Continue so one inaccessible mailbox does not block the rest of the page.
+      } finally {
+        user.checkingAccountStatus = false
+      }
+    }
+    ElMessage({
+      message: t('accountStatusBatchChecked', {checked, total: users.value.length}),
+      type: checked === users.value.length ? 'success' : 'warning',
+      plain: true
+    })
+  } finally {
+    checkingCurrentPage.value = false
+  }
 }
 function accountCurChange(e) {
   accountParams.num = e
