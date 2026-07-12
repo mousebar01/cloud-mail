@@ -286,6 +286,15 @@ const userService = {
 
 	},
 
+	async setRemark(c, params) {
+		const { userId } = params;
+		const remark = String(params.remark || '').trim();
+		if (remark.length > 200) {
+			throw new BizError('Remark cannot exceed 200 characters');
+		}
+		await orm(c).update(user).set({ remark }).where(eq(user.userId, userId)).run();
+	},
+
 	async incrUserSendCount(c, quantity, userId) {
 		await orm(c).update(user).set({
 			sendCount: sql`${user.sendCount}

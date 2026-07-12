@@ -42,13 +42,25 @@
             :cell-class-name="cellClassName"
         >
           <el-table-column :width="expandWidth" type="selection" :selectable="row => row.type !== 0" />
-          <el-table-column show-overflow-tooltip :tooltip-formatter="tableRowFormatter" :label="$t('tabEmailAddress')"
+           <el-table-column show-overflow-tooltip :tooltip-formatter="tableRowFormatter" :label="$t('tabEmailAddress')"
                            :min-width="emailWidth">
             <template #default="props">
               <div style="display: flex;gap: 5px">
                 <div class="email-row">{{ props.row.email }}</div>
                 <el-tag type="warning" v-if="props.row.username">L</el-tag>
               </div>
+             </template>
+           </el-table-column>
+          <el-table-column :label="$t('remark')" min-width="180">
+            <template #default="props">
+              <el-input
+                  v-model="props.row.remark"
+                  size="small"
+                  maxlength="200"
+                  show-word-limit
+                  :placeholder="$t('remarkPlaceholder')"
+                  @change="setRemark(props.row)"
+              />
             </template>
           </el-table-column>
           <el-table-column :formatter="formatterReceive" label-class-name="receive" column-key="receive"
@@ -372,6 +384,7 @@ import {
   userSetPwd,
   userSetStatus,
   userSetType,
+  userSetRemark,
   userAdd,
   userRestSendCount,
   userRestore,
@@ -566,6 +579,18 @@ function deleteAccount(account) {
       })
     })
   });
+}
+
+function setRemark(user) {
+  userSetRemark({userId: user.userId, remark: user.remark}).then(() => {
+    ElMessage({
+      message: t('remarkSaved'),
+      type: 'success',
+      plain: true
+    })
+  }).catch(() => {
+    getUserList(false)
+  })
 }
 function accountCurChange(e) {
   accountParams.num = e
