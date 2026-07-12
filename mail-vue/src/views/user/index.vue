@@ -63,6 +63,23 @@
               />
             </template>
           </el-table-column>
+          <el-table-column :label="$t('plan')" min-width="86">
+            <template #default="props">
+              <el-tag disable-transitions :type="props.row.planStatus === 'Plus' ? 'warning' : 'info'">
+                {{ props.row.planStatus || 'Free' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="$t('accountAvailability')" min-width="116">
+            <template #default="props">
+              <el-tooltip v-if="props.row.accountCheckedAt" :content="`${t('lastChecked')}: ${tzDayjs(props.row.accountCheckedAt).format('YYYY-MM-DD HH:mm')}`">
+                <el-tag disable-transitions :type="props.row.accountStatus === 'Deactivated' ? 'danger' : 'success'">
+                  {{ props.row.accountStatus || 'Active' }}
+                </el-tag>
+              </el-tooltip>
+              <el-tag v-else disable-transitions type="info">{{ t('notChecked') }}</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column :formatter="formatterReceive" label-class-name="receive" column-key="receive"
                            :filtered-value="filteredValue" :filters="filters" :width="receiveWidth"
                            :label="$t('tabReceived')"
@@ -109,6 +126,9 @@
                       <el-dropdown-item v-else @click="restore(props.row)">{{ $t('restore') }}</el-dropdown-item>
                     </template>
                     <el-dropdown-item @click="openAccountList(props.row.userId)" >{{ $t('account') }}</el-dropdown-item>
+                    <el-dropdown-item :disabled="props.row.checkingAccountStatus" @click="checkAccountStatus(props.row)">
+                      {{ props.row.checkingAccountStatus ? $t('checkingAccountStatus') : $t('checkAccountStatus') }}
+                    </el-dropdown-item>
                     <el-dropdown-item @click="openDetails(props.row)" >{{ $t('details') }}</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -385,6 +405,7 @@ import {
   userSetStatus,
   userSetType,
   userSetRemark,
+  userCheckAccountStatus,
   userAdd,
   userRestSendCount,
   userRestore,
@@ -590,6 +611,20 @@ function setRemark(user) {
     })
   }).catch(() => {
     getUserList(false)
+  })
+}
+
+function checkAccountStatus(user) {
+  user.checkingAccountStatus = true
+  userCheckAccountStatus(user.userId).then(data => {
+    Object.assign(user, data)
+    ElMessage({
+      message: t('accountStatusChecked'),
+      type: 'success',
+      plain: true
+    })
+  }).finally(() => {
+    user.checkingAccountStatus = false
   })
 }
 function accountCurChange(e) {

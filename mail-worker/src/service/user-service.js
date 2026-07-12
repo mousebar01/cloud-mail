@@ -2,7 +2,8 @@ import BizError from '../error/biz-error';
 import accountService from './account-service';
 import orm from '../entity/orm';
 import user from '../entity/user';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import email from '../entity/email';
+import { and, asc, count, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { emailConst, isDel, roleConst, userConst } from '../const/entity-const';
 import kvConst from '../const/kv-const';
 import KvConst from '../const/kv-const';
@@ -18,6 +19,24 @@ import { t } from '../i18n/i18n'
 import reqUtils from '../utils/req-utils';
 import {oauth} from "../entity/oauth";
 import oauthService from "./oauth-service";
+
+const DEACTIVATED_MARKERS = [
+	'account has been deactivated',
+	'your account has been deactivated',
+	'account deactivated',
+	'access deactivated',
+	'账号已被停用',
+	'账户已被停用',
+	'账号已停用',
+	'账户已停用'
+];
+const PLUS_MARKERS = [
+	'chatgpt plus subscription',
+	'successfully subscribed to chatgpt plus',
+	'subscribed to chatgpt plus',
+	'你已成功订阅 chatgpt plus',
+	'成功订阅 chatgpt plus'
+];
 
 const userService = {
 
@@ -293,6 +312,50 @@ const userService = {
 			throw new BizError('Remark cannot exceed 200 characters');
 		}
 		await orm(c).update(user).set({ remark }).where(eq(user.userId, userId)).run();
+	},
+
+	async checkAccountStatus(c, params) {
+		const userId = Number(params.userId);
+		const userRow = await this.selectByIdIncludeDel(c, userId);
+		if (!userRow) {
+			throw new BizError('User not found');
+		}
+		const messages = await orm(c).select().from(email).where(and(
+			eq(email.userId, userId),
+			eq(email.type, emailConst.type.RECEIVE),
+			eq(email.isDel, isDel.NORMAL),
+			ne(email.status, emailConst.status.SAVING)
+		)).orderBy(desc(email.emailId)).limit(50).all();
+
+		const matchingPlusMessages = messages.filter(message => {
+			const text = [message.subject, message.name, message.text, message.content].join('\n').toLowerCase();
+			return PLUS_MARKERS.some(marker => text.includes(marker));
+		});
+		const isDeactivated = messages.some(message => {
+			const text = [message.subject, message.name, message.text, message.content].join('\n').toLowerCase();
+			return DEACTIVATED_MARKERS.some(marker => text.includes(marker));
+		});
+		const now = dayjs();
+		let planStatus = 'Free';
+		let planExpiresAt = null;
+		if (matchingPlusMessages.length) {
+			const latestReceipt = matchingPlusMessages.reduce((latest, message) =>
+				dayjs(message.createTime).isAfter(dayjs(latest.createTime)) ? message : latest
+			);
+			const expiry = dayjs(latestReceipt.createTime).add(30, 'day');
+			if (expiry.isAfter(now)) {
+				planStatus = 'Plus';
+				planExpiresAt = expiry.format('YYYY-MM-DD HH:mm:ss');
+			}
+		} else if (userRow.planStatus === 'Plus' && userRow.planExpiresAt && dayjs(userRow.planExpiresAt).isAfter(now)) {
+			planStatus = 'Plus';
+			planExpiresAt = userRow.planExpiresAt;
+		}
+		const accountStatus = isDeactivated ? 'Deactivated' : 'Active';
+		const accountCheckedAt = now.format('YYYY-MM-DD HH:mm:ss');
+		await orm(c).update(user).set({ planStatus, planExpiresAt, accountStatus, accountCheckedAt })
+			.where(eq(user.userId, userId)).run();
+		return { planStatus, planExpiresAt, accountStatus, accountCheckedAt };
 	},
 
 	async incrUserSendCount(c, quantity, userId) {

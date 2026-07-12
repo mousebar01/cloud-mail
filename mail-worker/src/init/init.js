@@ -30,6 +30,7 @@ const dbInit = {
 		await this.v2_9DB(c);
 		await this.v3_0DB(c);
 		await this.v3_1DB(c);
+		await this.v3_2DB(c);
 		await settingService.refresh(c);
 		return c.text('success');
 	},
@@ -62,6 +63,22 @@ const dbInit = {
 			await c.env.db.prepare(`ALTER TABLE user ADD COLUMN remark TEXT NOT NULL DEFAULT '';`).run();
 		} catch (e) {
 			console.warn(`跳过字段：${e.message}`);
+		}
+	},
+
+	async v3_2DB(c) {
+		const statements = [
+			"ALTER TABLE user ADD COLUMN plan_status TEXT NOT NULL DEFAULT 'Free';",
+			"ALTER TABLE user ADD COLUMN account_status TEXT NOT NULL DEFAULT 'Active';",
+			"ALTER TABLE user ADD COLUMN plan_expires_at TEXT;",
+			"ALTER TABLE user ADD COLUMN account_checked_at TEXT;"
+		];
+		for (const statement of statements) {
+			try {
+				await c.env.db.prepare(statement).run();
+			} catch (e) {
+				console.warn(`Skipping migration: ${e.message}`);
+			}
 		}
 	},
 
@@ -581,6 +598,11 @@ const dbInit = {
 			status INTEGER DEFAULT 0 NOT NULL,
 			create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
 			active_time DATETIME,
+			remark TEXT NOT NULL DEFAULT '',
+			plan_status TEXT NOT NULL DEFAULT 'Free',
+			account_status TEXT NOT NULL DEFAULT 'Active',
+			plan_expires_at DATETIME,
+			account_checked_at DATETIME,
 			is_del INTEGER DEFAULT 0 NOT NULL
 		  )
 		`).run();

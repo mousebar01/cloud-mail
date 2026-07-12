@@ -21,6 +21,10 @@ export function userSetRemark(params) {
     return http.put('/user/setRemark', params)
 }
 
+export function userCheckAccountStatus(userId) {
+    return http.put('/user/checkAccountStatus', {userId})
+}
+
 
 export function userDelete(userIds) {
     return http.delete('/user/delete', {params:{userIds: userIds + ''}})

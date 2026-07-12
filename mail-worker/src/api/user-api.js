@@ -29,6 +29,11 @@ app.put('/user/setRemark', async (c) => {
 	return c.json(result.ok());
 });
 
+app.put('/user/checkAccountStatus', async (c) => {
+	const data = await userService.checkAccountStatus(c, await c.req.json());
+	return c.json(result.ok(data));
+});
+
 app.get('/user/list', async (c) => {
 	const data = await userService.list(c, c.req.query(), userContext.getUserId(c));
 	return c.json(result.ok(data));
